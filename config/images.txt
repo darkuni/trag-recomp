@@ -1,0 +1,4 @@
+# Code images for the recompiler (see src/recomp.py).
+#   exe <file>
+#   ovl <file> <load address> <host exe> <archive> <offset> <size>
+exe SLUS_008.13

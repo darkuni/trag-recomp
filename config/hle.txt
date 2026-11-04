@@ -1,0 +1,9 @@
+# Guest functions replaced by host code (image address host_function)
+# libapi/libcard patch the BIOS pad and memory card drivers in kernel RAM; the HLE BIOS has
+# nothing to patch, and EnablePAD/DisablePAD jump into that patched BIOS code.
+SLUS_008.13 80082a38 hle_nop    # _patch_pad
+SLUS_008.13 80082a10 hle_nop    # EnablePAD
+SLUS_008.13 80082a24 hle_nop    # DisablePAD
+SLUS_008.13 80082be8 hle_nop    # _patch_card
+SLUS_008.13 80082c7c hle_nop    # _patch_card2
+SLUS_008.13 80082cec hle_nop    # _copy_memcard_patch (C0 table patch)
