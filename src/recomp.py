@@ -262,6 +262,26 @@ class Recompiler:
     def note_consts(self, img, f, a):
         pass
 
+    def resolve_const(self, img, a, reg, limit=400, depth=0):
+        """Value of `reg` before the instruction at `a` if its last write (walking back linearly)
+        is a constant: lui, lui+addiu/ori. None otherwise."""
+        for _ in range(limit):
+            a -= 4
+            if not img.has(a):
+                return None
+            i = img.insn(a)
+            if writes(i) != reg:
+                continue
+            if i.mn == 'lui':
+                return (i.imm << 16) & 0xffffffff
+            if i.mn in ('addiu', 'ori') and depth < 3:
+                v = self.resolve_const(img, a, i.rs, 16, depth + 1)
+                if v is None:
+                    return None
+                return (v + i.simm) & 0xffffffff if i.mn == 'addiu' else v | i.imm
+            return None
+        return None
+
     def find_table(self, img, f, jr_addr):
         forced = self.forced_tables.get((img.name, jr_addr))
         jr = img.insn(jr_addr)
@@ -291,6 +311,8 @@ class Recompiler:
             lo = lw.simm
             b = lw.pc - 4
             idx_regs = set()
+            addu_pc = None
+            cands = ()
             for _ in range(16):
                 if not img.has(b):
                     break
@@ -300,6 +322,7 @@ class Recompiler:
                     if i.mn == 'addu':
                         # one of rs/rt holds the table base (lui), the other the scaled index
                         cands = (i.rs, i.rt)
+                        addu_pc = b
                         base_reg = None
                         # find a lui for either
                         c = b - 4
@@ -327,6 +350,13 @@ class Recompiler:
                     else:
                         break
                 b -= 4
+            if hi is None and addu_pc is not None:
+                # the base was set up further back (e.g. kept in a saved register for a loop)
+                for r in cands:
+                    v = self.resolve_const(img, addu_pc, r)
+                    if v is not None and self.target_image(img, (v + lw.simm) & 0xffffffff) is not None:
+                        hi, lo = v, lw.simm
+                        break
             if hi is None:
                 return None
             tab_addr = (hi + lo) & 0xffffffff

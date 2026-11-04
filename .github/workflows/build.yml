@@ -1,0 +1,139 @@
+name: Build Windows and Linux
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+env:
+  SDL2_VERSION: 2.30.9
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 120
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install mingw-w64 and Ninja
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq mingw-w64 ninja-build cmake
+          x86_64-w64-mingw32-g++-posix --version | head -1
+
+      - name: SDL2 development package (mingw)
+        run: |
+          curl -sSL -o sdl.tar.gz https://github.com/libsdl-org/SDL/releases/download/release-${SDL2_VERSION}/SDL2-devel-${SDL2_VERSION}-mingw.tar.gz
+          tar xzf sdl.tar.gz
+          echo "SDL2_DIR=$PWD/SDL2-${SDL2_VERSION}/x86_64-w64-mingw32" >> $GITHUB_ENV
+
+      - name: Compiler cache
+        uses: hendrikmuhs/ccache-action@v1.2
+        with:
+          key: trag-win64
+
+      - name: Configure
+        run: |
+          cmake -S src -B build-win -G Ninja -DCMAKE_TOOLCHAIN_FILE=$PWD/src/mingw.cmake \
+            -DCMAKE_C_COMPILER_LAUNCHER=ccache -DCMAKE_CXX_COMPILER_LAUNCHER=ccache \
+            -DSDL2_DIR="$SDL2_DIR"
+
+      - name: Build
+        run: ninja -C build-win -j4
+
+      - name: Stage package
+        run: |
+          mkdir -p dist/game
+          cp build-win/trag.exe dist/
+          cp "$SDL2_DIR/bin/SDL2.dll" dist/
+          cp LICENSE THIRD_PARTY_NOTICES.md dist/
+          cat > dist/README.txt <<'TXT'
+          T.R.A.G. - native Windows port (static recompilation)
+
+          The game is NOT included. First run only: put your own disc image (a .chd,
+          or the .cue file and its .bin; North American release SLUS-00813) next to
+          trag.exe or in the "game" folder, then run trag.exe.
+          (Or drag the disc image onto trag.exe.)
+
+          The disc is imported once into assets.dat and verified to be an exact copy.
+          After that the game runs from assets.dat alone - delete the disc image.
+          The install is then just:
+            trag.exe, SDL2.dll, assets.dat (+ memcard1.mcd, trag.ini)
+
+          F1 or Esc (Start+Select on a controller) opens the settings menu, including
+          Keyboard keys and Controller buttons for rebinding. Hold Tab to fast-forward.
+          Saves go to memcard1.mcd next to the exe (a standard PS1 memory card image,
+          usable in emulators). Settings are in trag.ini.
+          TXT
+          sed -i 's/^          //' dist/README.txt
+          ls -la dist
+
+      - name: Upload
+        uses: actions/upload-artifact@v4
+        with:
+          name: trag-win64
+          path: dist/
+
+  linux:
+    # Linux / SteamOS (Steam Deck) build: needs only SDL2 and libGL from the system
+    runs-on: ubuntu-24.04
+    timeout-minutes: 120
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install SDL2, GL and Ninja
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq libsdl2-dev libgl-dev ninja-build cmake
+
+      - name: Compiler cache
+        uses: hendrikmuhs/ccache-action@v1.2
+        with:
+          key: trag-linux
+
+      - name: Configure
+        run: |
+          cmake -S src -B build-linux -G Ninja -DUSE_SDL=ON \
+            -DCMAKE_C_COMPILER_LAUNCHER=ccache -DCMAKE_CXX_COMPILER_LAUNCHER=ccache
+
+      - name: Build
+        run: ninja -C build-linux -j4
+
+      - name: Stage package
+        run: |
+          mkdir -p dist/trag/game
+          cp build-linux/trag dist/trag/
+          strip dist/trag/trag
+          cp LICENSE THIRD_PARTY_NOTICES.md dist/trag/
+          cat > dist/trag/README.txt <<'TXT'
+          T.R.A.G. - native Linux / SteamOS port (static recompilation)
+
+          The game is NOT included. First run only: put your own disc image (a .chd,
+          or the .cue file and its .bin; North American release SLUS-00813) next to
+          the trag program or in the "game" folder, then run ./trag
+          (or ./trag /path/to/image.cue).
+
+          The disc is imported once into assets.dat and verified to be an exact copy.
+          After that the game runs from assets.dat alone - delete the disc image.
+
+          Steam Deck: in Desktop Mode, copy this folder somewhere (e.g. ~/Games/trag),
+          do the first run from Desktop Mode, then add "trag" to Steam with
+          "Add a Non-Steam Game" to play it in Game Mode. It needs only SDL2 and
+          OpenGL, which SteamOS has.
+
+          F1 or Esc (Start+Select on a controller) opens the settings menu, including
+          Keyboard keys and Controller buttons for rebinding. Hold Tab to fast-forward.
+          Saves go to memcard1.mcd next to the program (a standard PS1 memory card
+          image, usable in emulators). Settings are in trag.ini.
+          TXT
+          sed -i 's/^          //' dist/trag/README.txt
+          tar czf dist/trag-linux-x86_64.tar.gz -C dist trag
+          ls -la dist
+
+      - name: Upload
+        uses: actions/upload-artifact@v4
+        with:
+          name: trag-linux-x86_64
+          path: dist/trag-linux-x86_64.tar.gz

@@ -34,9 +34,11 @@ if(WIN32)
   endif()
   target_link_libraries(trag PRIVATE SDL2 winmm -mwindows -static-libgcc -static-libstdc++ -Wl,-Bstatic,--whole-archive -lwinpthread -Wl,--no-whole-archive,-Bdynamic)
 elseif(USE_SDL)
+  # desktop Linux / SteamOS build: SDL2 and libGL from the system (both are on SteamOS),
+  # the C++ runtime linked in so the binary does not depend on the build system's libstdc++
   target_compile_definitions(trag PRIVATE USE_SDL)
-  target_compile_options(trag PRIVATE -O2 -fno-strict-aliasing -g)
-  target_link_libraries(trag PRIVATE SDL2 GL pthread)
+  target_compile_options(trag PRIVATE -O2 -fno-strict-aliasing -g0)
+  target_link_libraries(trag PRIVATE SDL2 GL pthread dl -static-libgcc -static-libstdc++)
 else()
   target_compile_options(trag PRIVATE -O2 -fno-strict-aliasing -g)
   target_link_libraries(trag PRIVATE EGL GL pthread)

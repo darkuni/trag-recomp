@@ -16,7 +16,8 @@ import tempfile
 EXE_SHA1 = {
     'SLUS_008.13': '2f88a4142ce141932b7fb5bc9ea5a39b3bda5916',
 }
-FILES = ['SLUS_008.13', 'SUB0D.BIN', 'SAVE.BIN']
+FILES = ['SLUS_008.13', 'SUB0D.BIN', 'SAVE.BIN', 'BGDATA/RM_PACK.BIN'] + \
+    ['PRG/PLAYER/%s.BIN' % n for n in ('ALE_PACK', 'BUR_PACK', 'MIC_PACK', 'RAC_PACK', 'DEMOPACK')]
 
 
 class Iso:
@@ -31,24 +32,33 @@ class Iso:
         return b''.join(self.sector(lba + i) for i in range((size + 2047) // 2048))[:size]
 
     def root_files(self):
+        """All files on the disc, by path ("BGDATA/RM_PACK.BIN")."""
         pvd = self.sector(16)
         assert pvd[1:6] == b'CD001', 'not an ISO 9660 data track'
         rec = pvd[156:190]
-        lba, size = struct.unpack_from('<I', rec, 2)[0], struct.unpack_from('<I', rec, 10)[0]
-        data = self.read(lba, size)
         out = {}
-        p = 0
-        while p < size:
-            n = data[p]
-            if n == 0:
-                p = (p // 2048 + 1) * 2048
-                continue
-            r = data[p:p + n]
-            p += n
-            name = r[33:33 + r[32]]
-            if name in (b'\0', b'\1'):
-                continue
-            out[name.decode().split(';')[0]] = (struct.unpack_from('<I', r, 2)[0], struct.unpack_from('<I', r, 10)[0])
+
+        def walk(lba, size, path):
+            data = self.read(lba, size)
+            p = 0
+            while p < size:
+                n = data[p]
+                if n == 0:
+                    p = (p // 2048 + 1) * 2048
+                    continue
+                r = data[p:p + n]
+                p += n
+                name = r[33:33 + r[32]]
+                if name in (b'\0', b'\1'):
+                    continue
+                name = name.decode().split(';')[0]
+                el, es = struct.unpack_from('<I', r, 2)[0], struct.unpack_from('<I', r, 10)[0]
+                if r[25] & 2:
+                    walk(el, es, path + name + '/')
+                else:
+                    out[path + name] = (el, es)
+
+        walk(struct.unpack_from('<I', rec, 2)[0], struct.unpack_from('<I', rec, 10)[0], '')
         return out
 
 
@@ -74,6 +84,7 @@ def main():
         if name in EXE_SHA1:
             h = hashlib.sha1(data).hexdigest()
             assert h == EXE_SHA1[name], '%s: unexpected SHA1 %s (needs the NTSC-U release, SLUS-00813)' % (name, h)
+        os.makedirs(os.path.dirname(os.path.join(out, name)), exist_ok=True)
         open(os.path.join(out, name), 'wb').write(data)
         print('%-12s %9d bytes' % (name, size))
     # code overlays: entries of the BINPACK archives (config/images.txt)

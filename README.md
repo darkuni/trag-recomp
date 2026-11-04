@@ -11,15 +11,20 @@ Graphics are re-rendered with OpenGL at higher resolution.
 
 ## Status
 
-- Work in progress. The executable is recompiled; the code modules the game loads from its
-  `PRG/PLAYER/*_PACK.BIN`, `SUB0D.BIN` and `SAVE.BIN` files (at 0x80143E08) still run in the
-  runtime's interpreter until they are mapped.
-- Boots through the logos and the intro movie into gameplay and the map screen.
+- All code is recompiled: the executable and its 169 code modules (8 character modules, 55
+  cutscene modules, 104 room modules, the title/menu and save modules). No code runs in the
+  interpreter in the tested opening (logos, intro movie, first cutscenes, gameplay, map screen),
+  and frames match a reference emulator there.
+- Windows and Linux / SteamOS builds.
 
-## Running (Windows)
+## Running
 
-1. Download the `trag-win64` artifact from the latest **Build Windows** run (Actions tab).
-2. First run only: put your disc image next to `trag.exe` or in a `game` folder beside it, then
+Windows: the `trag-win64` artifact of the latest **Build Windows and Linux** run (Actions tab).
+Linux / Steam Deck: the `trag-linux-x86_64` artifact (a .tar.gz; see its README.txt for adding it
+to Steam as a non-Steam game).
+
+1. Unpack it.
+2. First run only: put your disc image next to `trag.exe` (`trag` on Linux) or in a `game` folder beside it, then
    run `trag.exe` - or drag the image onto it.
 3. The disc is imported once into **`assets.dat`** (about 460 MB) and checked sector by sector
    to be an exact copy. From then on the game runs from `assets.dat` and the disc image can be
@@ -59,9 +64,12 @@ Change them in the F1 menu under **Keyboard keys** (saved in `trag.ini`).
 ## Regenerating the code
 
 ```sh
-python3 tools/prepare_disc.py TRAG.cue game
+python3 tools/prepare_disc.py TRAG.cue game      # executable + module archives + overlays/
+python3 tools/gen_images.py game > config/images.txt   # (already committed)
 python3 src/recomp.py game config src/gen 300
 ```
+
+Linux desktop build: `cmake -S src -B build-linux -G Ninja -DUSE_SDL=ON && ninja -C build-linux`.
 
 ## Disclaimer
 

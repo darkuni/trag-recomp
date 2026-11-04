@@ -4,13 +4,26 @@
 
 - `SLUS_008.13` (text 0x80010000-0x80098800, entry 0x80063BF4): engine and PsyQ libraries
   (libetc, libcd, libgpu, libgte, libspu/libsnd, libpad, libcard). No LoadExec.
-- Code modules are loaded at 0x80143E08: `SUB0D.BIN`, `SAVE.BIN`, and the start of each
-  character pack `PRG/PLAYER/{ALE,BUR,MIC,RAC}_PACK.BIN` (word 0 is the module id, followed by
-  its function pointer table). `DEMOPACK.BIN` holds further code chunks between its data. The
-  pack layout is still being mapped; until then these run in the interpreter.
-- Files are read sector by sector through a buffer at 0x800964D0 and copied into place, so the
-  DMA log (`LOG=cdmap`) does not show load addresses; `OVL_CAPTURE` + RAM matching does.
+- Code comes in modules; word 0 of each is the module id, usually followed by a table of
+  pointers. `tools/gen_images.py` reads the module tables in the executable and writes
+  `config/images.txt`:
+  - ids 4-11, character modules, two per `PRG/PLAYER/{MIC,BUR,ALE,RAC}_PACK.BIN`, at
+    0x80143E08. Table at 0x80010000: per character a row of four sizes (three modes use the
+    module at the start of the pack, the fourth the second one) and four rows of entry points.
+  - ids 0x0C-0x42, cutscene modules in `DEMOPACK.BIN`, at 0x80143E08: sector offsets at
+    0x800146E0, sizes at 0x800147BC.
+  - ids 0x45-, room modules in `BGDATA/RM_PACK.BIN`, at 0x80161B50: sector offsets at
+    0x80014C10, sizes at 0x80014DD0 (108 slots, 104 used).
+  - `SUB0D.BIN` (id 0x44, title and menus) and `SAVE.BIN` (id 0x43), at 0x80143E08.
+  A module is code followed by data; each image covers only the code part (to the last `jr ra`
+  before 24 KB without one), so data is never swept for functions.
+- The loader at 0x8003D15C reads (position, bytes, destination); packs go through a staging
+  buffer at 0x800B9D08 and are then copied, so the DMA log (`LOG=cdmap`) does not show load
+  addresses.
 - Movies: `MOVIE/MV2_PACK.BIN` (STR); music and voices: `SOUND/XA_DATA.XA`.
+- Jump tables: some functions keep the table base in a saved register set up far from the
+  `jr` (one copies its table to the stack first); `resolve_const` in the recompiler walks back
+  linearly to the constant, and `config/functions.txt` lists those three tables explicitly.
 
 ## Code images and dispatch
 
