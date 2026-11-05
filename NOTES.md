@@ -138,6 +138,14 @@ same `read_raw` interface either way.
 - BIOS string arguments can live in the scratchpad (the game's stack is there).
 - BIOS threads: a retired host thread is told apart from its replacement by a generation number.
 
+- libetc `VSync()` waits in a polling loop that gives up after `count << 15` passes. Recompiled
+  code charged one cycle per instruction, so a one-frame wait timed out before the vblank:
+  `VSync()` returned early (the game loop ran about twice as fast: characters moved too fast, the
+  title screen timed out early) and the timeout path called `ChangeClearPAD(0)`. `hle_vsync_wait`
+  replaces the loop and measures the timeout at the console's ~30 cycles per pass.
+- Backdrops are drawn partly as screen-aligned textured quads and partly as sprites; "smooth 3D"
+  texture filtering now treats depth-less screen-aligned quads as 2D art, so backdrops stay uniform.
+
 ## Debugging aids
 
 - `einhander.log` next to the exe lists code the game ran outside the recompiled images (it

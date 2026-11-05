@@ -382,3 +382,38 @@ bool bisect_interp(uint32_t addr) {
     return false;
 }
 #endif
+
+// libetc's VSync() waits for the vblank counter in a polling loop that gives up after
+// (count << 15) passes. On the console a pass takes about 30 cycles (uncached RAM loads), so a
+// one-frame wait never runs out; recompiled code charges one cycle per instruction and the loop
+// timed out before the vblank, so VSync() returned early (the game ran up to twice too fast) and
+// its timeout path switched off the pad and vblank IRQ acknowledgement. This replacement waits
+// on the same counter, with the timeout measured at the console's speed.
+#ifdef VSYNC_WAIT_FN
+void hle_vsync_wait(Cpu* c) {
+    static uint32_t vcount = 0, fn_puts = 0, fn_pad = 0, fn_rcnt = 0, msg = 0;
+    if (!vcount) {
+        const uint32_t f = VSYNC_WAIT_FN;
+        auto jal = [](uint32_t w) { return 0x80000000u | ((w & 0x3ffffffu) << 2); };
+        vcount = (MEM_RW(f + 0x0c) << 16) + (uint32_t)(int16_t)MEM_RW(f + 0x10);
+        msg = (MEM_RW(f + 0x48) << 16) + (uint32_t)(int16_t)MEM_RW(f + 0x50);
+        fn_puts = jal(MEM_RW(f + 0x4c));
+        fn_pad = jal(MEM_RW(f + 0x54));
+        fn_rcnt = jal(MEM_RW(f + 0x60));
+    }
+    const int32_t target = (int32_t)c->r[4];
+    const int64_t passes = ((int64_t)(c->r[5] & 0x1ffff) << 15) + 1;
+    const int64_t deadline = c->cycles + passes * 30;
+    while ((int32_t)MEM_RW(vcount) < target) {
+        if (c->cycles >= deadline) {
+            guest_call(c, fn_puts, msg);
+            guest_call(c, fn_pad, 0);
+            guest_call(c, fn_rcnt, 3, 0);
+            break;
+        }
+        c->cycles = std::min(deadline, std::max(c->cycles + 30, c->next_event));
+        CHECK_EVENTS(c);
+    }
+    c->cycles += 12;
+}
+#endif

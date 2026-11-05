@@ -330,7 +330,8 @@ static void update_input() {
     g_host_input.ry = std::max(-1.f, std::min(1.f, ry));
     g_host_input.lt = std::max(0.f, std::min(1.f, lt));
     g_host_input.rt = std::max(0.f, std::min(1.f, rt));
-    g_host_input.buttons = b;
+    static const bool scripted = getenv("INPUT_SCRIPT") || getenv("ASCRIPT");   // headless tests drive the pad
+    if (!scripted) g_host_input.buttons = b;
     g_host_input.lx = std::max(-1.f, std::min(1.f, lx));
     g_host_input.ly = std::max(-1.f, std::min(1.f, ly));
 }

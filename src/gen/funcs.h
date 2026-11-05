@@ -4425,3 +4425,4 @@ void o99_80169598(Cpu* c);
 void o99_80169624(Cpu* c);
 void o99_8016962c(Cpu* c);
 void hle_nop(Cpu* c);
+void hle_vsync_wait(Cpu* c);

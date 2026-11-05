@@ -495,8 +495,24 @@ void gfx_triangle(const GfxVertex v[3], const GfxState& s) {
         g_batch_check = s.check_mask;
     }
     if (s.semi) g_batch_blend = s.blend;
+    // Screen-aligned textured quads with no 3D depth (pre-rendered backdrops drawn as polygons,
+    // next to backdrop pieces drawn as sprites) count as 2D art: "smooth 3D" filtering leaves
+    // them sharp like the sprites, so the backdrop doesn't mix smoothed and blocky parts.
+    bool flat2d = false;
+    if (s.textured && !s.sprite && !(v[0].w > 0 && v[1].w > 0 && v[2].w > 0)) {
+        // corners on two columns and two rows (a rectangle's half), texture axes following them
+        int same_x = 0, same_y = 0;
+        flat2d = true;
+        for (int i = 0; i < 3; i++)
+            for (int j = i + 1; j < 3; j++) {
+                bool sx = v[i].x == v[j].x, sy = v[i].y == v[j].y;
+                same_x += sx; same_y += sy;
+                if (sx != (v[i].u == v[j].u) || sy != (v[i].v == v[j].v)) flat2d = false;
+            }
+        if (same_x == 0 || same_y == 0) flat2d = false;
+    }
     int16_t flags = (int16_t)((s.textured ? 1 : 0) | (s.raw ? 2 : 0) | (s.tex_mode << 2) | (s.semi ? 16 : 0) | (s.set_mask ? 32 : 0) |
-                              (s.sprite ? 64 : 0) | (s.dither ? 128 : 0));
+                              ((s.sprite || flat2d) ? 64 : 0) | (s.dither ? 128 : 0));
     // texel bounds for filtering: a primitive's own texture area (sprites end one texel early)
     float umin = std::min(v[0].u, std::min(v[1].u, v[2].u)), umax = std::max(v[0].u, std::max(v[1].u, v[2].u));
     float vmin = std::min(v[0].v, std::min(v[1].v, v[2].v)), vmax = std::max(v[0].v, std::max(v[1].v, v[2].v));

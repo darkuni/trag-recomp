@@ -12350,7 +12350,7 @@ L_8006e8c0:
     R(31) = 0x8006e8c8u;
         R(4) = R(2) + 0u;
     c->cycles += 2;
-    e0_8006e988(c);
+    hle_vsync_wait(c);
     R(2) = 0x80090000u;
     R(2) = MEM_RW(R(2) + 0x54b8u);
     R(16) = MEM_RW(R(2));
@@ -12360,7 +12360,7 @@ L_8006e8c0:
     R(31) = 0x8006e8ecu;
         R(4) = R(4) + 0x1u;
     c->cycles += 9;
-    e0_8006e988(c);
+    hle_vsync_wait(c);
     R(2) = 0x400000u;
     R(2) = R(16) & R(2);
     {

@@ -763,7 +763,7 @@ static const FuncEntry img0_funcs[] = {
     {0x8006e780u, e0_8006e780},
     {0x8006e7b0u, e0_8006e7b0},
     {0x8006e810u, e0_8006e810},
-    {0x8006e988u, e0_8006e988},
+    {0x8006e988u, hle_vsync_wait},
     {0x8006ea20u, e0_8006ea20},
     {0x8006ea50u, e0_8006ea50},
     {0x8006ea80u, e0_8006ea80},

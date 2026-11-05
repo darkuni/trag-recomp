@@ -5,6 +5,7 @@
 #define GAME_BIN "trag.exe"
 #define GAME_EXE_NAME "SLUS_008.13"
 #define GAME_SERIAL "SLUS-00813"
+#define VSYNC_WAIT_FN 0x8006e988u       // libetc VSync wait loop (replaced: see hle_vsync_wait)
 static const unsigned GAME_EXE_SIZE = 561152u;
 static const unsigned GAME_EXE_PC = 0x80063bf4u;
 

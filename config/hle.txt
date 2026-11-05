@@ -7,3 +7,5 @@ SLUS_008.13 80082a24 hle_nop    # DisablePAD
 SLUS_008.13 80082be8 hle_nop    # _patch_card
 SLUS_008.13 80082c7c hle_nop    # _patch_card2
 SLUS_008.13 80082cec hle_nop    # _copy_memcard_patch (C0 table patch)
+# libetc VSync's polling wait: timed at the console's speed (it timed out early when recompiled)
+SLUS_008.13 8006e988 hle_vsync_wait
