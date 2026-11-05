@@ -39,6 +39,7 @@ to Steam as a non-Steam game).
 | VSync, Fullscreen (F11 / Alt+Enter) | |
 | Scaling | sharp or smooth |
 | Texture filtering | off (original), smooth 3D (2D art and text stay sharp), smooth everything - bilinear on the palette-decoded texels, so transparent edges stay clean |
+| Background upscaling | off (original pixels), smooth edges - the xBR pixel-art upscaler on the pre-rendered backgrounds only (on by default) |
 | Colour | true colour, or the original 15-bit colour with the PlayStation's dither pattern |
 | Precise geometry | sub-pixel polygon positions and perspective-correct textures (no wobble or texture warping), PGXP-style |
 | Screen filter | off, scanlines, CRT (scanlines + aperture grille + glow; needs a window 600+ pixels tall) |
