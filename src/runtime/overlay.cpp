@@ -40,6 +40,7 @@ static const std::vector<Item>& items() {
         {"Fullscreen", {"Off", "On"}, "Also F11 or Alt+Enter."},
         {"Scaling", {"Sharp", "Smooth"}, "How the picture is scaled to the window."},
         {"Texture filtering", {"Off (original)", "Smooth 3D", "Smooth all"}, "Smooth 3D keeps the 2D art and text sharp."},
+        {"Background upscaling", {"Off (original)", "Smooth edges"}, "Pixel-art upscaler (xBR) for the pre-rendered backgrounds."},
         {"Colour", {"True colour", "Original (dithered)"}, "Original: the PlayStation's 15-bit colour and dither pattern."},
         {"Precise geometry", {"Off (original)", "On"}, "No wobbling polygons or warping textures."},
         {"Screen filter", {"Off", "Scanlines", "CRT"}, "Needs a window at least 600 pixels tall."},
@@ -69,16 +70,17 @@ static int get_value(int i) {
         case 3: return g_cfg.fullscreen;
         case 4: return g_cfg.smooth_scaling;
         case 5: return g_cfg.texture_filter;
-        case 6: return g_cfg.dither;
-        case 7: return g_cfg.subpixel;
-        case 8: return g_cfg.crt;
-        case 9: return g_cfg.hq_audio;
-        case 10: return std::min(g_cfg.vibration, (int)items()[10].opts.size() - 1);
-        case 11: return std::clamp((g_cfg.vibration_strength + 12) / 25 - 1, 0, 3);
-        case 12: return g_cfg.swap_ab_xy;
-        case 13: return g_cfg.fast_cd;
-        case 14: return std::max(1, std::min(8, g_cfg.speed)) - 1;
-        case 15: return g_cfg.show_perf;
+        case 6: return g_cfg.backdrop_xbr;
+        case 7: return g_cfg.dither;
+        case 8: return g_cfg.subpixel;
+        case 9: return g_cfg.crt;
+        case 10: return g_cfg.hq_audio;
+        case 11: return std::min(g_cfg.vibration, (int)items()[11].opts.size() - 1);
+        case 12: return std::clamp((g_cfg.vibration_strength + 12) / 25 - 1, 0, 3);
+        case 13: return g_cfg.swap_ab_xy;
+        case 14: return g_cfg.fast_cd;
+        case 15: return std::max(1, std::min(8, g_cfg.speed)) - 1;
+        case 16: return g_cfg.show_perf;
     }
     return 0;
 }
@@ -90,16 +92,17 @@ static void set_value(int i, int v) {
         case 3: g_cfg.fullscreen = v; break;
         case 4: g_cfg.smooth_scaling = v; break;
         case 5: g_cfg.texture_filter = v; break;
-        case 6: g_cfg.dither = v; break;
-        case 7: g_cfg.subpixel = v; break;
-        case 8: g_cfg.crt = v; break;
-        case 9: g_cfg.hq_audio = v; break;
-        case 10: g_cfg.vibration = v; break;
-        case 11: g_cfg.vibration_strength = (v + 1) * 25; break;
-        case 12: g_cfg.swap_ab_xy = v; break;
-        case 13: g_cfg.fast_cd = v; break;
-        case 14: g_cfg.speed = v + 1; break;
-        case 15: g_cfg.show_perf = v; break;
+        case 6: g_cfg.backdrop_xbr = v; break;
+        case 7: g_cfg.dither = v; break;
+        case 8: g_cfg.subpixel = v; break;
+        case 9: g_cfg.crt = v; break;
+        case 10: g_cfg.hq_audio = v; break;
+        case 11: g_cfg.vibration = v; break;
+        case 12: g_cfg.vibration_strength = (v + 1) * 25; break;
+        case 13: g_cfg.swap_ab_xy = v; break;
+        case 14: g_cfg.fast_cd = v; break;
+        case 15: g_cfg.speed = v + 1; break;
+        case 16: g_cfg.show_perf = v; break;
     }
     config_save();
 }

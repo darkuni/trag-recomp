@@ -30,7 +30,7 @@ static int g_tmp_w = 0, g_tmp_h = 0;
 static GLuint g_out_tex, g_out_fbo;                 // presented frame
 static int g_out_w = 0, g_out_h = 0;
 static GLuint g_prog, g_prog24, g_prog_stencil, g_vao, g_vbo;
-static GLint u_vram, u_scale, u_blend, u_pass, u_filter, u_dither;
+static GLint u_vram, u_scale, u_blend, u_pass, u_filter, u_dither, u_xbr;
 static GLint u24_vram, u24_scale, u24_rect;
 static GLint us_vram, us_scale;
 static bool g_ready = false;
@@ -122,6 +122,7 @@ uniform int u_blend;
 uniform int u_pass;
 uniform int u_filter;   // 0 nearest, 1 bilinear on polygons, 2 bilinear on everything
 uniform int u_dither;   // 0 true colour, 1 original 15-bit colour with the GPU's dither pattern
+uniform int u_xbr;      // 1: edge-directed upscaling (xBR) of flat 2D backdrop quads
 layout(location = 0, index = 0) out vec4 o_color;
 layout(location = 0, index = 1) out vec4 o_blend;
 
@@ -154,9 +155,71 @@ vec4 fetch(ivec2 t, int mode, out uint raw) {
     return unpack16(raw);
 }
 
+
+// ---- xBR (Hyllian's edge-directed pixel-art scaling, level 2), for the pre-rendered backdrops.
+// Works at any output scale from the fractional position inside the source texel.
+vec2 g_fw;
+float lum(vec3 c) { return dot(c, vec3(14.352, 28.176, 5.472)); }
+vec4 df(vec4 a, vec4 b) { return abs(a - b); }
+float cdf(vec3 a, vec3 b) { vec3 d = abs(a - b); return d.r + d.g + d.b; }
+bvec4 neq(vec4 a, vec4 b) { return greaterThan(df(a, b), vec4(2.0)); }
+bvec4 band(bvec4 a, bvec4 b) { return bvec4(a.x && b.x, a.y && b.y, a.z && b.z, a.w && b.w); }
+vec4 wd(vec4 a, vec4 b, vec4 c, vec4 d, vec4 e, vec4 f, vec4 g, vec4 h) {
+    return df(a, b) + df(a, c) + df(d, e) + df(d, f) + 4.0 * df(g, h);
+}
+// neighbour texel, kept inside the primitive's own texture area; transparent ones count as the centre
+vec3 xt(ivec2 t, int mode, vec3 centre) {
+    ivec2 lo = v_lim.xy, hi = max(v_lim.zw, v_lim.xy);
+    uint r;
+    vec4 c = fetch(clamp(t, lo, hi), mode, r);
+    return r == 0u ? centre : c.rgb;
+}
+vec3 xbr(int mode, vec3 E) {
+    ivec2 p = ivec2(floor(v_uv));
+    vec2 fp = fract(v_uv);
+    vec3 A = xt(p + ivec2(-1, -1), mode, E), B = xt(p + ivec2(0, -1), mode, E), C = xt(p + ivec2(1, -1), mode, E);
+    vec3 D = xt(p + ivec2(-1, 0), mode, E), F = xt(p + ivec2(1, 0), mode, E);
+    vec3 G = xt(p + ivec2(-1, 1), mode, E), H = xt(p + ivec2(0, 1), mode, E), I = xt(p + ivec2(1, 1), mode, E);
+    vec3 A1 = xt(p + ivec2(-1, -2), mode, E), B1 = xt(p + ivec2(0, -2), mode, E), C1 = xt(p + ivec2(1, -2), mode, E);
+    vec3 A0 = xt(p + ivec2(-2, -1), mode, E), D0 = xt(p + ivec2(-2, 0), mode, E), G0 = xt(p + ivec2(-2, 1), mode, E);
+    vec3 C4 = xt(p + ivec2(2, -1), mode, E), F4 = xt(p + ivec2(2, 0), mode, E), I4 = xt(p + ivec2(2, 1), mode, E);
+    vec3 G5 = xt(p + ivec2(-1, 2), mode, E), H5 = xt(p + ivec2(0, 2), mode, E), I5 = xt(p + ivec2(1, 2), mode, E);
+    vec4 b = vec4(lum(B), lum(D), lum(H), lum(F));
+    vec4 c = vec4(lum(C), lum(A), lum(G), lum(I));
+    vec4 e = vec4(lum(E));
+    vec4 d = b.yzwx, f = b.wxyz, g = c.zwxy, h = b.zwxy, i = c.wxyz;
+    vec4 i4 = vec4(lum(I4), lum(C1), lum(A0), lum(G5));
+    vec4 i5 = vec4(lum(I5), lum(C4), lum(A1), lum(G0));
+    vec4 h5 = vec4(lum(H5), lum(F4), lum(B1), lum(D0));
+    vec4 f4 = h5.yzwx;
+    const vec4 Ao = vec4(1.0, -1.0, -1.0, 1.0), Bo = vec4(1.0, 1.0, -1.0, -1.0), Co = vec4(1.5, 0.5, -0.5, 0.5);
+    const vec4 Bx = vec4(0.5, 2.0, -0.5, -2.0), Cx = vec4(1.0, 1.0, -0.5, 0.0);
+    const vec4 By = vec4(2.0, 0.5, -2.0, -0.5), Cy = vec4(2.0, 0.0, -1.0, 0.5);
+    vec4 fx = Ao * fp.y + Bo * fp.x, fxl = Ao * fp.y + Bx * fp.x, fxu = Ao * fp.y + By * fp.x;
+    float dl = clamp(max(g_fw.x, g_fw.y), 0.02, 0.5);
+    vec4 delta = vec4(dl), deltaL = vec4(0.5, 1.0, 0.5, 1.0) * dl, deltaU = vec4(1.0, 0.5, 1.0, 0.5) * dl;
+    bvec4 r1 = band(neq(e, f), neq(e, h));
+    bvec4 rl = band(neq(e, g), neq(d, g));
+    bvec4 ru = band(neq(e, c), neq(b, c));
+    bvec4 edr = band(lessThan(wd(e, c, g, i, h5, f4, h, f), wd(h, d, i5, f, i4, b, e, i)), r1);
+    bvec4 edl = band(lessThanEqual(2.0 * df(f, g), df(h, c)), rl);
+    bvec4 edu = band(greaterThanEqual(df(f, g), 2.0 * df(h, c)), ru);
+    vec4 fx45 = vec4(edr) * smoothstep(Co - delta, Co + delta, fx);
+    vec4 fx30 = vec4(edr) * vec4(edl) * smoothstep(Cx - deltaL, Cx + deltaL, fxl);
+    vec4 fx60 = vec4(edr) * vec4(edu) * smoothstep(Cy - deltaU, Cy + deltaU, fxu);
+    bvec4 px = lessThanEqual(df(e, f), df(e, h));
+    vec4 m = max(max(fx30, fx60), fx45);
+    vec3 r1c = mix(E, mix(H, F, float(px.x)), m.x);
+    r1c = mix(r1c, mix(B, D, float(px.z)), m.z);
+    vec3 r2c = mix(E, mix(F, B, float(px.y)), m.y);
+    r2c = mix(r2c, mix(D, H, float(px.w)), m.w);
+    return mix(r1c, r2c, step(cdf(E, r1c), cdf(E, r2c)));
+}
+
 const float kDither[16] = float[16](-4.0, 0.0, -3.0, 1.0, 2.0, -2.0, 3.0, -1.0, -3.0, 1.0, -4.0, 0.0, 3.0, -1.0, 2.0, -2.0);
 
 void main() {
+    g_fw = fwidth(v_uv);
     int flags = v_info.x;
     bool textured = (flags & 1) != 0;
     vec3 col = v_color.rgb;
@@ -166,7 +229,11 @@ void main() {
         vec4 texel;
         uint raw;
         bool sprite = (flags & 64) != 0;
-        if (u_filter == 2 || (u_filter == 1 && !sprite)) {
+        if (u_xbr != 0 && (flags & 256) != 0) {
+            texel = fetch(ivec2(floor(v_uv)), mode, raw);
+            if (raw == 0u) discard;
+            texel.rgb = xbr(mode, texel.rgb);
+        } else if (u_filter == 2 || (u_filter == 1 && !sprite)) {
             // bilinear between the opaque neighbours (palette lookups first, so colour keys and
             // edges stay clean); the shape follows the nearest texel, the bounds keep neighbouring
             // atlas entries out
@@ -330,6 +397,7 @@ void gfx_init() {
     u_pass = glGetUniformLocation(g_prog, "u_pass");
     u_filter = glGetUniformLocation(g_prog, "u_filter");
     u_dither = glGetUniformLocation(g_prog, "u_dither");
+    u_xbr = glGetUniformLocation(g_prog, "u_xbr");
     g_prog24 = link(kQuadVS, k24FS);
     u24_vram = glGetUniformLocation(g_prog24, "u_vram");
     u24_scale = glGetUniformLocation(g_prog24, "u_scale");
@@ -425,6 +493,7 @@ void gfx_flush() {
     glUniform1i(u_scale, S);
     glUniform1i(u_filter, g_cfg.texture_filter);
     glUniform1i(u_dither, g_cfg.dither);
+    glUniform1i(u_xbr, g_cfg.backdrop_xbr);
     int mode = g_batch_blend < 0 ? 0 : g_batch_blend;
     glUniform1i(u_blend, mode);
     glBindVertexArray(g_vao);
@@ -512,7 +581,7 @@ void gfx_triangle(const GfxVertex v[3], const GfxState& s) {
         if (same_x == 0 || same_y == 0) flat2d = false;
     }
     int16_t flags = (int16_t)((s.textured ? 1 : 0) | (s.raw ? 2 : 0) | (s.tex_mode << 2) | (s.semi ? 16 : 0) | (s.set_mask ? 32 : 0) |
-                              ((s.sprite || flat2d) ? 64 : 0) | (s.dither ? 128 : 0));
+                              ((s.sprite || flat2d) ? 64 : 0) | (s.dither ? 128 : 0) | (flat2d ? 256 : 0));
     // texel bounds for filtering: a primitive's own texture area (sprites end one texel early)
     float umin = std::min(v[0].u, std::min(v[1].u, v[2].u)), umax = std::max(v[0].u, std::max(v[1].u, v[2].u));
     float vmin = std::min(v[0].v, std::min(v[1].v, v[2].v)), vmax = std::max(v[0].v, std::max(v[1].v, v[2].v));

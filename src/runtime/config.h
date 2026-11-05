@@ -13,6 +13,7 @@ struct Config {
     bool swap_ab_xy = false;         // gamepad: Nintendo-style face button positions
     int speed = 1;                   // 1..8 (fast-forward)
     int texture_filter = 1;          // 0 nearest (original), 1 bilinear on 3D polygons, 2 bilinear on everything
+    bool backdrop_xbr = true;        // edge-directed (xBR) upscaling of the pre-rendered backgrounds
     bool dither = false;             // original 15-bit colour + dither pattern (off = true colour)
     bool subpixel = true;            // precise vertex positions from the GTE (no polygon wobble)
     bool hq_audio = true;            // windowed-sinc resampling of streamed audio (off = original)
